@@ -1,12 +1,14 @@
+import streamlit as st
 import pdfplumber
 import re
 import pandas as pd
+from io import BytesIO
 
-def extract_po_data(pdf_path):
+def extract_po_data(pdf_file):
     data = []
     current_po = {}
     
-    with pdfplumber.open(pdf_path) as pdf:
+    with pdfplumber.open(pdf_file) as pdf:
         for page in pdf.pages:
             text = page.extract_text()
             lines = text.split('\n')
@@ -37,8 +39,8 @@ def extract_po_data(pdf_path):
                         price = float(numeric_values[-2])
                         data.append({
                             'PO No.': current_po['PO No.'],
-                            'Store Name': current_po.get('Store Name', ''),
                             'Store ID': current_po.get('Store ID', ''),
+                            'Store Name': current_po.get('Store Name', ''),
                             'Order Date': current_po.get('Order Date', ''),
                             'Delivery Date': current_po.get('Delivery Date', ''),
                             'Item#': parts[0],
@@ -48,24 +50,45 @@ def extract_po_data(pdf_path):
     
     return data
 
-# Process all PDFs
-all_data = []
-pdf_files = [
-    'ATiara Mail Document (37).PDF',
-    'ATiara Mail Document (38).PDF',
-    'ATiara Mail Document (39).PDF',
-    'ATiara Mail Document (40).PDF'
-]
+# Streamlit UI
+st.title("T&T Purchase Order Processor 🛒")
+uploaded_files = st.file_uploader("Upload PDFs", type="pdf", accept_multiple_files=True)
 
-for pdf_file in pdf_files:
-    all_data.extend(extract_po_data(pdf_file))
+if uploaded_files:
+    all_data = []
+    for uploaded_file in uploaded_files:
+        data = extract_po_data(BytesIO(uploaded_file.getvalue()))
+        all_data.extend(data)
+    
+    if all_data:
+        # Create DataFrame and sort
+        df = pd.DataFrame(all_data)
+        
+        # Convert to numeric for proper sorting
+        df['Store ID'] = pd.to_numeric(df['Store ID'], errors='coerce')
+        df['PO No.'] = pd.to_numeric(df['PO No.'], errors='coerce')
+        
+        # Sort by Store ID and PO No.
+        df = df.sort_values(by=['Store ID', 'PO No.'], ascending=[True, True])
+        
+        # Reorder columns
+        df = df[['Store ID', 'Store Name', 'PO No.', 'Order Date', 'Delivery Date',
+                'Item#', 'Ordered Qty', 'Price']]
 
-# Create DataFrame and sort
-df = pd.DataFrame(all_data)
-df['Store ID'] = df['Store ID'].astype(int)  # Convert to integer for proper sorting
-df['PO No.'] = df['PO No.'].astype(int)
-df = df.sort_values(by=['Store ID', 'PO No.'], ascending=[True, True])
-
-# Save to CSV
-df.to_csv('sorted_purchase_orders.csv', index=False)
-print("Sorted CSV generated: sorted_purchase_orders.csv")
+        # Show preview
+        st.write("Preview of Extracted Data:")
+        st.dataframe(df.head())
+        
+        # Download Excel
+        excel_buffer = BytesIO()
+        df.to_excel(excel_buffer, index=False, engine='openpyxl')
+        st.download_button(
+            label="Download Excel Sheet",
+            data=excel_buffer.getvalue(),
+            file_name="purchase_orders.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+    else:
+        st.warning("No valid purchase order data found in the uploaded files.")
+else:
+    st.info("Please upload PDF files to get started")
