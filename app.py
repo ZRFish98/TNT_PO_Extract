@@ -43,7 +43,7 @@ def extract_po_data(pdf_file):
                             'Store Name': current_po.get('Store Name', ''),
                             'Order Date': current_po.get('Order Date', ''),
                             'Delivery Date': current_po.get('Delivery Date', ''),
-                            'Item#': parts[0],
+                            'Internal Reference': parts[0],
                             'Ordered Qty': ordered_qty,
                             'Price': price
                         })
@@ -73,7 +73,7 @@ if uploaded_files:
         
         # Reorder columns
         df = df[['Store ID', 'Store Name', 'PO No.', 'Order Date', 'Delivery Date',
-                'Item#', 'Ordered Qty', 'Price']]
+                'Internal Reference', 'Ordered Qty', 'Price']]
 
         # Show preview
         st.write("Preview of Extracted Data:")
